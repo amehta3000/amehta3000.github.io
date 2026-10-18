@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ameet Mehta · Apps</title>
+  <meta name="description" content="Apps and experiments by Ameet Mehta." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f6f6f4;
+      --surface: #ffffff;
+      --text: #17171a;
+      --muted: #6b6b73;
+      --border: #e4e4e0;
+      --accent: #4f46e5;
+      --accent-soft: #eef0ff;
+      --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0f0f12;
+        --surface: #18181d;
+        --text: #ececf1;
+        --muted: #9a9aa6;
+        --border: #2a2a31;
+        --accent: #8b85ff;
+        --accent-soft: #23223a;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3);
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0f0f12;
+      --surface: #18181d;
+      --text: #ececf1;
+      --muted: #9a9aa6;
+      --border: #2a2a31;
+      --accent: #8b85ff;
+      --accent-soft: #23223a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.3);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 56px 16px 80px; }
+    header h1 { font-size: clamp(28px, 5vw, 40px); margin: 0 0 6px; letter-spacing: -0.02em; }
+    header p { margin: 0; color: var(--muted); }
+    .toolbar { display: flex; gap: 12px; margin: 32px 0 24px; flex-wrap: wrap; align-items: center; }
+    .search {
+      flex: 1 1 240px; padding: 10px 14px; font: inherit; color: var(--text);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; outline: none;
+    }
+    .search:focus { border-color: var(--accent); }
+    .count { color: var(--muted); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .card {
+      display: flex; flex-direction: column; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+      box-shadow: var(--shadow); transition: transform .15s ease, border-color .15s ease;
+      text-decoration: none; color: inherit;
+    }
+    .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .thumb { aspect-ratio: 2 / 1; width: 100%; object-fit: cover; background: var(--accent-soft); display: block; border-bottom: 1px solid var(--border); }
+    .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .title { font-weight: 600; font-size: 18px; margin: 0; }
+    .desc { color: var(--muted); font-size: 14px; margin: 0; flex: 1; }
+    .topics { display: flex; flex-wrap: wrap; gap: 6px; }
+    .topic { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+    .meta { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .meta a { color: var(--muted); text-decoration: none; }
+    .meta a:hover { color: var(--accent); }
+    .meta a.open { color: var(--accent); font-weight: 500; }
+    .state { padding: 48px 0; text-align: center; color: var(--muted); }
+    .state a { color: var(--accent); }
+    footer { margin-top: 56px; color: var(--muted); font-size: 14px; text-align: center; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+  <script>
+    // ---- Config ---------------------------------------------------------
+    const USER = "amehta3000";
+    // Repos with GitHub Pages enabled are listed automatically.
+    // Add repo names here to hide them.
+    const EXCLUDE = [`${USER}.github.io`];
+    // ---------------------------------------------------------------------
+
+    const { useEffect, useMemo, useState } = React;
+    const html = htm.bind(React.createElement);
+
+    const prettify = (name) =>
+      name.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const appUrl = (repo) =>
+      repo.homepage && /^https?:\/\//.test(repo.homepage)
+        ? repo.homepage
+        : `https://${USER}.github.io/${repo.name}/`;
+
+    const fmtDate = (iso) =>
+      new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+    async function fetchRepos() {
+      const all = [];
+      for (let page = 1; page <= 10; page++) {
+        const res = await fetch(
+          `https://api.github.com/users/${USER}/repos?per_page=100&page=${page}&sort=pushed`,
+          { headers: { Accept: "application/vnd.github+json" } }
+        );
+        if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
+        const batch = await res.json();
+        all.push(...batch);
+        if (batch.length < 100) break;
+      }
+      return all
+        .filter((r) => r.has_pages && !r.fork && !r.archived && !EXCLUDE.includes(r.name))
+        .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
+    }
+
+    function Card({ repo }) {
+      const url = appUrl(repo);
+      return html`
+        <article class="card">
+          <a href=${url}>
+            <img class="thumb" loading="lazy" alt=""
+              onError=${(e) => { e.currentTarget.style.visibility = "hidden"; }}
+              src=${`https://opengraph.githubassets.com/1/${USER}/${repo.name}`} />
+          </a>
+          <div class="body">
+            <h2 class="title"><a href=${url} style=${{ color: "inherit", textDecoration: "none" }}>${prettify(repo.name)}</a></h2>
+            <p class="desc">${repo.description || "No description yet."}</p>
+            ${repo.topics && repo.topics.length > 0 && html`
+              <div class="topics">${repo.topics.map((t) => html`<span class="topic" key=${t}>${t}</span>`)}</div>`}
+            <div class="meta">
+              <span>Updated ${fmtDate(repo.pushed_at)}</span>
+              <span>
+                <a href=${repo.html_url}>Code</a>
+                ${" · "}
+                <a class="open" href=${url}>Open →</a>
+              </span>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    function App() {
+      const [repos, setRepos] = useState(null);
+      const [error, setError] = useState(null);
+      const [query, setQuery] = useState("");
+
+      useEffect(() => {
+        fetchRepos().then(setRepos).catch((e) => setError(e.message));
+      }, []);
+
+      const shown = useMemo(() => {
+        if (!repos) return [];
+        const q = query.trim().toLowerCase();
+        if (!q) return repos;
+        return repos.filter((r) =>
+          [r.name, r.description || "", ...(r.topics || [])].join(" ").toLowerCase().includes(q)
+        );
+      }, [repos, query]);
+
+      return html`
+        <div class="wrap">
+          <header>
+            <h1>Ameet Mehta</h1>
+            <p>Apps and experiments, all in one place.</p>
+          </header>
+
+          <div class="toolbar">
+            <input class="search" type="search" placeholder="Search apps…"
+              value=${query} onInput=${(e) => setQuery(e.target.value)} />
+            ${repos && html`<span class="count">${shown.length} of ${repos.length} apps</span>`}
+          </div>
+
+          ${error
+            ? html`<div class="state">Couldn't load apps (${error}).<br />
+                See them on <a href=${`https://github.com/${USER}?tab=repositories`}>GitHub</a>.</div>`
+            : !repos
+            ? html`<div class="state">Loading apps…</div>`
+            : shown.length === 0
+            ? html`<div class="state">No apps match “${query}”.</div>`
+            : html`<div class="grid">${shown.map((r) => html`<${Card} key=${r.id} repo=${r} />`)}</div>`}
+
+          <footer>
+            <a href=${`https://github.com/${USER}`}>github.com/${USER}</a>
+          </footer>
+        </div>`;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(html`<${App} />`);
+  </script>
+</body>
+</html>
