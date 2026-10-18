@@ -55,6 +55,15 @@
       border-bottom: none;
       padding-bottom: 8px;
     }
+    .sort {
+      all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      white-space: nowrap; transition: color .12s ease;
+    }
+    .sort:hover, .sort.active { color: var(--text); }
+    .sort:focus-visible { outline: 1px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
+    .sort .arr { opacity: 0; transition: opacity .12s ease; }
+    .sort:hover .arr { opacity: .4; }
+    .sort.active .arr { opacity: 1; }
     .item { position: relative; transition: background .12s ease; }
     .item:hover { background: var(--row-hover); }
 
@@ -122,7 +131,29 @@
       Go: "#00add8", "C#": "#178600", "C++": "#f34b7d", GLSL: "#5686a5", Shell: "#89e051",
     };
 
-    const { useEffect, useState } = React;
+    // Sortable columns. Dates default to newest first, text to A→Z.
+    // Empty values always sort to the bottom.
+    const COLUMNS = [
+      { key: "name", label: "Project", value: (r) => r.name.toLowerCase(), first: "asc" },
+      { key: "desc", label: "Description", value: (r) => r.description?.toLowerCase(), first: "asc" },
+      { key: "lang", label: "Built with", value: (r) => r.language?.toLowerCase(), first: "asc", cls: "lang" },
+      { key: "started", label: "Started", value: (r) => r.created_at, first: "desc", cls: "started" },
+      { key: "updated", label: "Updated", value: (r) => r.pushed_at, first: "desc" },
+    ];
+
+    function sortRepos(repos, { key, dir }) {
+      const col = COLUMNS.find((c) => c.key === key);
+      const sign = dir === "asc" ? 1 : -1;
+      return [...repos].sort((a, b) => {
+        const va = col.value(a), vb = col.value(b);
+        if (!va && !vb) return 0;
+        if (!va) return 1;
+        if (!vb) return -1;
+        return va < vb ? -sign : va > vb ? sign : 0;
+      });
+    }
+
+    const { useEffect, useMemo, useState } = React;
     const html = htm.bind(React.createElement);
 
     const prettify = (name) =>
@@ -209,10 +240,18 @@
     function App() {
       const [repos, setRepos] = useState(null);
       const [error, setError] = useState(null);
+      const [sort, setSort] = useState({ key: "updated", dir: "desc" });
 
       useEffect(() => {
         fetchRepos().then(setRepos).catch((e) => setError(e.message));
       }, []);
+
+      const sorted = useMemo(() => repos && sortRepos(repos, sort), [repos, sort]);
+
+      const toggle = (col) =>
+        setSort((s) => s.key === col.key
+          ? { key: col.key, dir: s.dir === "asc" ? "desc" : "asc" }
+          : { key: col.key, dir: col.first });
 
       return html`
         <div class="wrap">
@@ -223,11 +262,17 @@
           </header>
 
           <div class="row head">
-            <span>Project</span>
-            <span>Description</span>
-            <span class="lang">Built with</span>
-            <span class="started">Started</span>
-            <span>Updated ↓</span>
+            ${COLUMNS.map((col) => {
+              const active = sort.key === col.key;
+              const dir = active ? sort.dir : col.first;
+              return html`
+                <span key=${col.key} class=${col.cls || ""}
+                  aria-sort=${active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+                  <button class=${active ? "sort active" : "sort"} onClick=${() => toggle(col)}>
+                    ${col.label}<span class="arr" aria-hidden="true">${dir === "asc" ? "↑" : "↓"}</span>
+                  </button>
+                </span>`;
+            })}
           </div>
 
           ${error
@@ -235,7 +280,7 @@
                 See them on <a href=${`https://github.com/${USER}?tab=repositories`}>GitHub</a>.</div>`
             : !repos
             ? html`<div class="state">Loading…</div>`
-            : repos.map((r) => html`<${Row} key=${r.id} repo=${r} />`)}
+            : sorted.map((r) => html`<${Row} key=${r.id} repo=${r} />`)}
         </div>`;
     }
 
