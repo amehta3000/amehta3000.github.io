@@ -16,6 +16,7 @@
       --muted: #8b8b90;
       --faint: #5a5a5f;
       --border: #1f1f22;
+      --tile: #232327;
       --accent: #e879f9;
       --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     }
@@ -25,11 +26,11 @@
       background: var(--bg);
       color: var(--text);
       font-family: Manrope, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      font-size: 17px;
+      font-size: 16px;
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 16px 80px; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 40px 16px 80px; }
 
     header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 36px; }
     header h1 { font-size: 34px; font-weight: 500; letter-spacing: -0.01em; margin: 0; }
@@ -39,24 +40,32 @@
 
     .row {
       display: grid;
-      grid-template-columns: 110px minmax(0, 1fr) 24px 160px;
+      grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) 120px 90px 80px;
       align-items: center;
-      gap: 16px;
-      padding: 16px 12px;
+      gap: 20px;
+      padding: 14px 12px;
       border-bottom: 1px solid var(--border);
     }
     .head {
       font-family: var(--mono);
-      font-size: 13px;
+      font-size: 12px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--muted);
       border-bottom: none;
-      padding-bottom: 10px;
+      padding-bottom: 8px;
     }
     .item { position: relative; transition: background .12s ease; }
     .item:hover { background: var(--row-hover); }
-    .item .date { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .proj { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .icon {
+      width: 24px; height: 24px; flex: none; border-radius: 6px;
+      background: var(--tile); object-fit: contain;
+      display: grid; place-items: center;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+    img.icon { background: transparent; }
     .name {
       text-decoration: underline;
       text-decoration-color: var(--faint);
@@ -68,19 +77,28 @@
     /* Make the whole row clickable */
     .name::after { content: ""; position: absolute; inset: 0; }
     .item:hover .name { text-decoration-color: var(--text); }
-    .arrow { color: var(--muted); opacity: 0; transition: opacity .12s ease; text-align: center; }
-    .item:hover .arrow { opacity: 1; }
-    .cat { color: var(--muted); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-    .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+
+    .desc { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lang { color: var(--muted); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--faint); }
+    .item .date { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .none { color: var(--faint); }
 
     .state { padding: 48px 12px; color: var(--muted); }
     .state a { color: var(--accent); }
 
-    @media (max-width: 640px) {
-      body { font-size: 16px; }
+    @media (max-width: 900px) {
+      .row { grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) 80px; }
+      .lang, .started { display: none; }
+    }
+    @media (max-width: 600px) {
       header h1 { font-size: 28px; }
-      .row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px 4px; }
-      .date, .arrow { display: none; }
+      .head { display: none; }
+      .row { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 14px 4px; }
+      .item .date { display: none; }
+      .desc { padding-left: 36px; font-size: 14px; white-space: normal;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+      .desc.none { display: none; }
     }
   </style>
 </head>
@@ -96,21 +114,13 @@
     // Repos with GitHub Pages enabled are listed automatically.
     // Add repo names here to hide them.
     const EXCLUDE = [`${USER}.github.io`];
-    // Category comes from the first matching repo topic (add e.g. "game"
-    // as a topic on GitHub), or from this map, otherwise "App".
-    const CATEGORIES = {
-      app: "#a78bfa",
-      game: "#f472b6",
-      website: "#38bdf8",
-      music: "#fbbf24",
-      video: "#fb7185",
-      tool: "#34d399",
-      experiment: "#94a3b8",
-    };
-    const CATEGORY_OVERRIDES = {
-      // "drift-raja": "game",
-    };
     // ---------------------------------------------------------------------
+
+    const LANG_COLORS = {
+      TypeScript: "#3178c6", JavaScript: "#f1e05a", Python: "#3572a5", HTML: "#e34c26",
+      CSS: "#663399", Svelte: "#ff3e00", Vue: "#41b883", Swift: "#f05138", Rust: "#dea584",
+      Go: "#00add8", "C#": "#178600", "C++": "#f34b7d", GLSL: "#5686a5", Shell: "#89e051",
+    };
 
     const { useEffect, useState } = React;
     const html = htm.bind(React.createElement);
@@ -123,11 +133,6 @@
         ? repo.homepage
         : `https://${USER}.github.io/${repo.name}/`;
 
-    const categoryOf = (repo) =>
-      CATEGORY_OVERRIDES[repo.name] ||
-      (repo.topics || []).find((t) => t in CATEGORIES) ||
-      "app";
-
     const fmtDate = (iso) => {
       const d = new Date(iso);
       const sameYear = d.getFullYear() === new Date().getFullYear();
@@ -135,6 +140,8 @@
         ? { month: "short", day: "numeric" }
         : { month: "short", year: "numeric" });
     };
+    const fmtMonth = (iso) =>
+      new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
     async function fetchRepos() {
       const all = [];
@@ -153,17 +160,49 @@
         .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
     }
 
+    // Read the app's own page for its favicon. Apps live on this same origin,
+    // so this doesn't count against GitHub's API limit.
+    async function findIcon(url) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+        const link =
+          doc.querySelector('link[rel="apple-touch-icon"]') ||
+          doc.querySelector('link[rel~="icon"]');
+        return new URL(link ? link.getAttribute("href") : "favicon.ico", url).href;
+      } catch {
+        return null;
+      }
+    }
+
+    function Icon({ repo }) {
+      const [src, setSrc] = useState(null);
+      const [failed, setFailed] = useState(false);
+      useEffect(() => { findIcon(appUrl(repo)).then(setSrc); }, [repo]);
+      if (src && !failed) {
+        return html`<img class="icon" src=${src} alt="" onError=${() => setFailed(true)} />`;
+      }
+      return html`<span class="icon" aria-hidden="true">${repo.name[0].toUpperCase()}</span>`;
+    }
+
     function Row({ repo }) {
-      const cat = categoryOf(repo);
       return html`
         <div class="row item">
-          <span class="date">${fmtDate(repo.pushed_at)}</span>
-          <a class="name" href=${appUrl(repo)} title=${repo.description || ""}>${prettify(repo.name)}</a>
-          <span class="arrow" aria-hidden="true">↗</span>
-          <span class="cat">
-            <span class="dot" style=${{ background: CATEGORIES[cat] }}></span>
-            ${cat[0].toUpperCase() + cat.slice(1)}
+          <span class="proj">
+            <${Icon} repo=${repo} />
+            <a class="name" href=${appUrl(repo)}>${prettify(repo.name)}</a>
           </span>
+          <span class=${repo.description ? "desc" : "desc none"} title=${repo.description || ""}>
+            ${repo.description || "—"}
+          </span>
+          <span class="lang">
+            ${repo.language
+              ? html`<span class="dot" style=${{ background: LANG_COLORS[repo.language] }}></span>${repo.language}`
+              : html`<span class="none">—</span>`}
+          </span>
+          <span class="date started">${fmtMonth(repo.created_at)}</span>
+          <span class="date">${fmtDate(repo.pushed_at)}</span>
         </div>`;
     }
 
@@ -184,10 +223,11 @@
           </header>
 
           <div class="row head">
-            <span class="date">Updated ↓</span>
             <span>Project</span>
-            <span class="arrow"></span>
-            <span>Category</span>
+            <span>Description</span>
+            <span class="lang">Built with</span>
+            <span class="started">Started</span>
+            <span>Updated ↓</span>
           </div>
 
           ${error
